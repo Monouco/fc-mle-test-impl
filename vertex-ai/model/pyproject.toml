@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "model"
+version = "0.1.0"
+description = "Projecto to solve the mle entrance exam"
+authors = ["Mauricio Ochoa"]
+
+[tool.poetry.dependencies]
+python = ">=3.11.7,<3.13.0"
+pandas = "^2.2.0"
+numpy = "^1.26.3"
+scikit-learn = "^1.4.0"
+lightgbm = "^4.3.0"
+
+[tool.poetry.group.serving]
+optional = true
+
+[tool.poetry.group.serving.dependencies]
+fastapi = {extras = ["uvicorn"], version = "^0.109.0"}
+uvicorn = "^0.23"
+google-cloud-storage = "^2.10.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "model"
+version = "0.1.0"
+description = "Projecto to solve the mle entrance exam"
+authors = ["Mauricio Ochoa"]
+
+[tool.poetry.dependencies]
+python = ">=3.11.7,<3.12.0"
+pandas = "^2.2.0"
+numpy = "^1.26.3"
+scikit-learn = "^1.4.0"
+lightgbm = "^4.3.0"
+kfp = "^2.6.0"
+google-cloud-aiplatform = "^1.40.0"
+fsspec = "^2023.12.2"
+gcsfs = "^2023.12.2.post1"
+google-cloud-pipeline-components = "^2.9.0"
+google-cloud-storage = "^2.14.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
