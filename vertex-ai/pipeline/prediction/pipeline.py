@@ -66,10 +66,14 @@ def cluster(
 
     preprocessed_cluster_cols = list(model["preprocess"].feature_names_in_)
 
-    inputs_df[preprocessed_cluster_cols] = model["preprocess"].transform(inputs_df[preprocessed_cluster_cols])
+    preprocess_df = inputs_df.copy()
 
-    clusters = model.predict(inputs_df[preprocessed_cluster_cols])
+    preprocess_df[preprocessed_cluster_cols] = model["preprocess"].transform(preprocess_df[preprocessed_cluster_cols])
 
+    trained_features = list(model["model"].feature_names_in_)
+    clusters = model["model"].predict(preprocess_df[trained_features])
+
+    inputs_df[preprocessed_cluster_cols] = preprocess_df[preprocessed_cluster_cols] 
     inputs_df["cluster"] = clusters
 
     inputs_df.to_csv(data_clustered.path)
@@ -87,15 +91,16 @@ def regression(
     import pandas as pd
     from google.cloud import storage
     client = storage.Client()
-    with open("model_cluster.joblib", "wb") as f:
-        client.download_blob_to_file(f"{model_path}/model_regressor{cluster}.joblib", f)
-    model = joblib.load("model_cluster.joblib")
+    with open("model_regressor.joblib", "wb") as f:
+        client.download_blob_to_file(f"{model_path}/model_regressor_{cluster}.joblib", f)
+    model = joblib.load("model_regressor.joblib")
 
+    products = [1,2,3,4,5]
     inputs_df = pd.read_csv(data.path)
 
+    inputs_df["id_marca"] = [products]* len(inputs_df)
+    inputs_df = inputs_df.explode("id_marca")
     preprocessed_cluster_cols = list(model["preprocess"].feature_names_in_)
-
-    inputs_df[preprocessed_cluster_cols] = model["preprocess"].transform(inputs_df[preprocessed_cluster_cols])
 
     prices = model.predict(inputs_df[preprocessed_cluster_cols])
 
@@ -119,6 +124,21 @@ def join_predictions(
     cluster_2 = pd.read_csv(data_cluster_2.path)
     joined = pd.concat([cluster_0,cluster_1,cluster_2])
     joined.to_csv(data_joined.path)
+
+@dsl.component(
+        base_image="us-east4-docker.pkg.dev/sanguine-anthem-412615/ue4-price-models/pipeline-training-env:default"
+)
+def save_predictions(
+    data: Input[Dataset],
+    path: str,
+    file_name: str
+) -> str:
+    import pandas as pd
+    save_path = f"{path}/{file_name}.csv"
+    df = pd.read_csv(data.path)
+    df.to_csv(save_path)
+    return save_path
+    
 
 
 @dsl.pipeline(name=config.pipeline_name)
@@ -144,7 +164,7 @@ def pipeline(
 
     cluster_predict = (
         cluster(
-            data=enrich_op.outputs["data_cliente"],
+            data_cliente=enrich_op.outputs["data_cliente"],
             model_path=config.model_path
         )
         .after(enrich_op)
@@ -167,10 +187,15 @@ def pipeline(
         model_output = (
             regression(
                 data=join_datasets_op.outputs["data_compras_joined"],
-                cluser=i,
+                cluster=i,
                 model_path=config.model_path
             ).after(join_datasets_op).set_display_name(f"Run Regressor Model {i}")
         )
         model_outputs.append(model_output.outputs["data_prices"])
     
-    join_predictions(data_cluster_0=model_outputs[0])
+    join_predictions_op = join_predictions(data_cluster_0=model_outputs[0],
+                                           data_cluster_1=model_outputs[1],
+                                           data_cluster_2=model_outputs[2])
+    save_predictions(data=join_predictions_op.outputs["data_joined"],
+                     path=config.prediction_path,
+                     file_name=config.prediction_name)

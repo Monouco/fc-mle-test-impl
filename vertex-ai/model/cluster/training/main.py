@@ -70,7 +70,9 @@ def main():
     logging.info(f"Persist URIs of training file(s) for model monitoring in batch predictions")
     save_training_dataset_metadata(args.model, args.data)
 
-    X_train_post.to_csv(args.data_out)
+    X_train[preprocess_config.columns_preprocess] = X_train_post[preprocess_config.columns_preprocess]
+    X_train["cluster"] = X_train_post["cluster"]
+    X_train.to_csv(args.data_out)
 
 if __name__ == "__main__":
     main()

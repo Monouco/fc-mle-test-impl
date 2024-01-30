@@ -1,6 +1,12 @@
 import pandas as pd
 from typing import Tuple
 
+def get_main_item(row: pd.Series) -> int:
+    try:
+        return int(row["id_marca_mode"])
+    except:
+        return int(row["id_marca_max_count"])
+
 def get_price(row: pd.Series) -> float:
     column_mark = ["precio_marca_1","precio_marca_2",
                    "precio_marca_3","precio_marca_4",
@@ -104,5 +110,6 @@ def gen_client_variables(df: pd.DataFrame) -> Tuple[pd.DataFrame,
     data_bought = bought_variables(df,client_columns)
     data_agg = gen_client_aggregations(df,client_columns)
     data_cliente = data_agg.merge(data_bought,left_on="id",right_on="id")
+    data_cliente["id_marca_mode"] = data_cliente.apply(get_main_item,axis=1)
     data_cliente["ratio_promo"] = data_cliente["compra_promo_sum"] / data_cliente["incidencia_compra_sum"]
     return df, data_cliente

@@ -1,19 +1,19 @@
 
 steps:
 
-#  - id: build-cluster-container-images
-#    name: gcr.io/cloud-builders/docker
-#    dir: /workspace/model
-#    entrypoint: sh
-#    args:
-#      - -c
-#      - |
-#        IMAGE_NAME="cluster-training" && \
-#        docker build --build-arg MODEL_NAME=cluster --target=training -t $$IMAGE_NAME:latest . && \
-#        docker tag $$IMAGE_NAME:latest $$CONTAINER_IMAGE_REGISTRY/$$IMAGE_NAME:default && \
-#        docker push $$CONTAINER_IMAGE_REGISTRY/$$IMAGE_NAME:default; 
-#    env:
-#      - CONTAINER_IMAGE_REGISTRY=us-east4-docker.pkg.dev/sanguine-anthem-412615/ue4-price-models
+  - id: build-cluster-container-images
+    name: gcr.io/cloud-builders/docker
+    dir: /workspace/model
+    entrypoint: sh
+    args:
+      - -c
+      - |
+        IMAGE_NAME="cluster-training" && \
+        docker build --build-arg MODEL_NAME=cluster --target=training -t $$IMAGE_NAME:latest . && \
+        docker tag $$IMAGE_NAME:latest $$CONTAINER_IMAGE_REGISTRY/$$IMAGE_NAME:default && \
+        docker push $$CONTAINER_IMAGE_REGISTRY/$$IMAGE_NAME:default; 
+    env:
+      - CONTAINER_IMAGE_REGISTRY=us-east4-docker.pkg.dev/sanguine-anthem-412615/ue4-price-models
 
   - id: build-regressor-container-images
     name: gcr.io/cloud-builders/docker
@@ -29,22 +29,22 @@ steps:
     env:
       - CONTAINER_IMAGE_REGISTRY=us-east4-docker.pkg.dev/sanguine-anthem-412615/ue4-price-models
 
-#  - id: build-pipeline-train-env
-#    name: gcr.io/cloud-builders/docker
-#    dir: /workspace/pipeline
-#    entrypoint: sh
-#    args:
-#      - -c
-#      - |
-#        IMAGE_NAME="pipeline-training-env" && \
-#        docker build -t $$IMAGE_NAME:latest . && \
-#        docker tag $$IMAGE_NAME:latest $$CONTAINER_IMAGE_REGISTRY/$$IMAGE_NAME:default && \
-#        docker push $$CONTAINER_IMAGE_REGISTRY/$$IMAGE_NAME:default; 
-#    env:
-#      - CONTAINER_IMAGE_REGISTRY=us-east4-docker.pkg.dev/sanguine-anthem-412615/ue4-price-models
+  - id: build-pipeline-train-env
+    name: gcr.io/cloud-builders/docker
+    dir: /workspace/pipeline
+    entrypoint: sh
+    args:
+      - -c
+      - |
+        IMAGE_NAME="pipeline-training-env" && \
+        docker build -t $$IMAGE_NAME:latest . && \
+        docker tag $$IMAGE_NAME:latest $$CONTAINER_IMAGE_REGISTRY/$$IMAGE_NAME:default && \
+        docker push $$CONTAINER_IMAGE_REGISTRY/$$IMAGE_NAME:default; 
+    env:
+      - CONTAINER_IMAGE_REGISTRY=us-east4-docker.pkg.dev/sanguine-anthem-412615/ue4-price-models
 
   # Install Python deps
-  - id: e2e-tests
+  - id: run_training_pipeline
     name: python:3.11
     dir: /workspace
     entrypoint: /bin/sh
@@ -57,7 +57,31 @@ steps:
         poetry install && \
         poetry run kfp dsl compile --py training/pipeline.py --output training/pipeline.yaml --function pipeline ;
         poetry run python -m utilities.run_pipeline \
-        --template_path=training/pipeline.yaml --display_name=price_estimator --wait=true \
+        --template_path=training/pipeline.yaml --display_name=price_estimator_training --wait=true \
+        --enable_cache=false
+    env:
+      - VERTEX_LOCATION=us-east4
+      - VERTEX_PROJECT_ID=sanguine-anthem-412615
+      - VERTEX_SA_EMAIL=sa-pipelines-ml@sanguine-anthem-412615.iam.gserviceaccount.com
+      - VERTEX_PIPELINE_ROOT=gs://ue4_vertex_bucket/PIPELINES/price_estimator/pl-root
+      - RESOURCE_SUFFIX=default
+      - SOLUTION_NAME=price_estimator
+      - VERTEX_BUCKET=ue4_vertex_bucket
+
+  - id: run_prediction_pipeline
+    name: python:3.11
+    dir: /workspace
+    entrypoint: /bin/sh
+    args:
+      - -c
+      - |
+        curl -sSL https://install.python-poetry.org | python3 - && \
+        export PATH="/builder/home/.local/bin:$$PATH" && \
+        cd pipeline && \
+        poetry install && \
+        poetry run kfp dsl compile --py prediction/pipeline.py --output prediction/pipeline.yaml --function pipeline ;
+        poetry run python -m utilities.run_pipeline \
+        --template_path=prediction/pipeline.yaml --display_name=price_estimator_prediction --wait=true \
         --enable_cache=false
     env:
       - VERTEX_LOCATION=us-east4
@@ -71,5 +95,5 @@ steps:
 options:
   logging: CLOUD_LOGGING_ONLY
 
-# Increase timeout to allow end-to-end (E2E) pipeline tests to run
+
 timeout: 18000s  # 5 hours
